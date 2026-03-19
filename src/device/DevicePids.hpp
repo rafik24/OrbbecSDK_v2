@@ -19,6 +19,8 @@ const std::vector<uint16_t> Astra2DevPids = {
     0x0660,  // astra2
 };
 
+const uint16_t OB_DEVICE_CR_SCAN_FERRET_PID = 0x069C;  // CR-Scan Ferret (Creality)
+
 const uint16_t OB_DEVICE_G336_PID   = 0x0803;
 const uint16_t OB_DEVICE_G336L_PID  = 0x0807;
 const uint16_t OB_DEVICE_G335LE_PID = 0x080E;

@@ -2852,5 +2852,41 @@
                 <Format>MJPG</Format>
             </Color>
         </GeminiEW>
+        <!-- CR-Scan Ferret (Creality branded Orbbec scanner, PID 0x069C) -->
+        <CR-ScanFerret>
+            <LinuxUVCDefaultBackend>LibUVC</LinuxUVCDefaultBackend>
+            <Misc>
+                <GlobalTimestampFitterEnable>false</GlobalTimestampFitterEnable>
+            </Misc>
+            <DepthPostProcessing>
+                <HardwareNoiseRemoveFilter>false</HardwareNoiseRemoveFilter>
+                <SoftwareNoiseRemoveFilter>true</SoftwareNoiseRemoveFilter>
+            </DepthPostProcessing>
+            <DefaultHeartBeat>0</DefaultHeartBeat>
+            <Depth>
+                <StreamFailedRetry>0</StreamFailedRetry>
+                <MaxStartStreamDelayMs>2000</MaxStartStreamDelayMs>
+                <MaxFrameIntervalMs>2000</MaxFrameIntervalMs>
+                <Width>1280</Width>
+                <Height>800</Height>
+                <FPS>30</FPS>
+                <Format>Y16</Format>
+            </Depth>
+            <Color>
+                <StreamFailedRetry>0</StreamFailedRetry>
+                <MaxStartStreamDelayMs>2000</MaxStartStreamDelayMs>
+                <MaxFrameIntervalMs>2000</MaxFrameIntervalMs>
+                <Width>1280</Width>
+                <Height>720</Height>
+                <FPS>30</FPS>
+                <Format>MJPG</Format>
+            </Color>
+            <LeftIR>
+                <Width>1280</Width>
+                <Height>800</Height>
+                <FPS>30</FPS>
+                <Format>Y8</Format>
+            </LeftIR>
+        </CR-ScanFerret>
     </Device>
 </Config>

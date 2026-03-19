@@ -160,6 +160,13 @@
             <Name>Gemini 435Le</Name>
             <Manufacturer>Orbbec</Manufacturer>
         </Gemini435Le>
+        <CRScanFerret>
+            <!-- CR-Scan Ferret (Creality branded Orbbec scanner) -->
+            <VID>0x2BC5</VID>
+            <PID>0x069C</PID>
+            <Name>CR-Scan Ferret</Name>
+            <Manufacturer>Creality</Manufacturer>
+        </CRScanFerret>
         <!-- More devices can be added here -->
     </DevList>
 
@@ -194,6 +201,7 @@
         <Device>CAM-5330</Device>
         <Device>CAM-5530</Device>
         <Device>CAM-5530b</Device>
+        <Device>CRScanFerret</Device>
         <!-- More devices can be added here -->
     </G330DeviceList>
 
@@ -231,6 +239,7 @@
         <Device>DaBaiAL</Device>
         <Device>Gemini345</Device>
         <Device>Gemini345Lg</Device>
+        <Device>CRScanFerret</Device>
         <!-- More devices can be added here -->
     </DaBaiAList>
 

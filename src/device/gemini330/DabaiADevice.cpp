@@ -486,7 +486,10 @@ void DabaiADevice::initSensorList() {
         registerComponent(OB_DEV_COMPONENT_MAIN_PROPERTY_ACCESSOR, [this, depthPortInfo]() {
             auto port          = getSourcePort(depthPortInfo);
             auto uvcDevicePort = std::dynamic_pointer_cast<UvcDevicePort>(port);
-            uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);  // update xu unit to g330 xu unit
+            // CR-Scan Ferret uses the common XU unit (unit 4), not the G330 XU unit (unit 3)
+            if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+                uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);
+            }
             auto accessor = std::make_shared<VendorPropertyAccessor>(this, port);
             return accessor;
         });
@@ -495,7 +498,10 @@ void DabaiADevice::initSensorList() {
         registerComponent(OB_DEV_COMPONENT_DEVICE_MONITOR, [this, depthPortInfo]() {
             auto port          = getSourcePort(depthPortInfo);
             auto uvcDevicePort = std::dynamic_pointer_cast<UvcDevicePort>(port);
-            uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);  // update xu unit to g330 xu unit
+            // CR-Scan Ferret uses the common XU unit (unit 4), not the G330 XU unit (unit 3)
+            if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+                uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);
+            }
             auto devMonitor = std::make_shared<DeviceMonitor>(this, port);
             return devMonitor;
         });
@@ -710,7 +716,10 @@ void                 DabaiADevice::initSensorListGMSL() {
         registerComponent(OB_DEV_COMPONENT_MAIN_PROPERTY_ACCESSOR, [this, depthPortInfo]() {
             auto port          = getSourcePort(depthPortInfo);
             auto uvcDevicePort = std::dynamic_pointer_cast<UvcDevicePort>(port);
-            uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);  // update xu unit to g330 xu unit
+            // CR-Scan Ferret uses the common XU unit (unit 4), not the G330 XU unit (unit 3)
+            if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+                uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);
+            }
             auto accessor = std::make_shared<VendorPropertyAccessor>(this, port);
             accessor->setRawdataTransferPacketSize(GMSL_MAX_CMD_DATA_SIZE);
             accessor->setStructListDataTransferPacketSize(GMSL_MAX_CMD_DATA_SIZE);
@@ -721,7 +730,10 @@ void                 DabaiADevice::initSensorListGMSL() {
         registerComponent(OB_DEV_COMPONENT_DEVICE_MONITOR, [this, depthPortInfo]() {
             auto port          = getSourcePort(depthPortInfo);
             auto uvcDevicePort = std::dynamic_pointer_cast<UvcDevicePort>(port);
-            uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);  // update xu unit to g330 xu unit
+            // CR-Scan Ferret uses the common XU unit (unit 4), not the G330 XU unit (unit 3)
+            if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+                uvcDevicePort->updateXuUnit(OB_G330_XU_UNIT);
+            }
             auto devMonitor = std::make_shared<DeviceMonitor>(this, port);
             return devMonitor;
         });

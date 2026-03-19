@@ -489,7 +489,10 @@ int32_t ObLibuvcDevicePort::getCtrl(uvc_req_code action, uint8_t control, uint8_
         ret = DW_TO_INT(buffer);
         break;
     default:
-        throw std::runtime_error("unsupported length");
+        // Some devices (e.g. CR-Scan Ferret) return unexpected control sizes.
+        // Return 0 instead of throwing to allow initialization to continue.
+        LOG_WARN("UVC control returned unsupported length: {}", transferred);
+        ret = 0;
     }
 
     return ret;

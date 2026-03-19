@@ -12,7 +12,7 @@ extern "C" {
 
 #if defined(__linux__) || defined(__APPLE__)
 #ifdef __linux__
-#include <termio.h>
+#include <termios.h>
 #else
 #include <termios.h>
 #endif

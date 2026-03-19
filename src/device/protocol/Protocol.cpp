@@ -20,6 +20,12 @@ bool checkStatus(HpStatus stat, bool throwException) {
         return false;
     case HP_STATUS_DEVICE_RESPONSE_ERROR:
         retMsg = std::string("Request failed, device response with error, errorCode: ") + std::to_string(stat.respErrorCode) + ", msg: " + stat.msg;
+        // Treat "unsupported request" (errorCode 2) as a warning instead of fatal error.
+        // Devices like CR-Scan Ferret return this for many vendor properties they don't implement.
+        if(stat.respErrorCode == HP_RESP_ERROR_UNSUPPORTED_REQUEST) {
+            LOG_WARN(retMsg);
+            return false;
+        }
         if(throwException) {
             throw io_exception(retMsg);
         }

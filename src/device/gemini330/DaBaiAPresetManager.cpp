@@ -269,22 +269,31 @@ void DaBaiAPresetManager::storeCurrentParamsAsCustomPreset(const std::string &pr
     DaBaiAPreset preset{};
     auto         owner = getOwner();
 
-    preset.laserState                 = getPropertyValue<int>(owner, OB_PROP_LASER_CONTROL_INT);
-    preset.laserPowerLevel            = getPropertyValue<int>(owner, OB_PROP_LASER_POWER_LEVEL_CONTROL_INT);
-    preset.depthAutoExposure          = getPropertyValue<bool>(owner, OB_PROP_DEPTH_AUTO_EXPOSURE_BOOL);
-    preset.depthExposureTime          = getPropertyValue<int>(owner, OB_PROP_IR_EXPOSURE_INT);
-    preset.depthGain                  = getPropertyValue<int>(owner, OB_PROP_IR_GAIN_INT);
-    preset.depthBrightness            = getPropertyValue<int>(owner, OB_PROP_IR_BRIGHTNESS_INT);
-    preset.colorAutoExposure          = getPropertyValue<bool>(owner, OB_PROP_COLOR_AUTO_EXPOSURE_BOOL);
-    preset.colorExposureTime          = getPropertyValue<int>(owner, OB_PROP_COLOR_EXPOSURE_INT);
-    preset.colorGain                  = getPropertyValue<int>(owner, OB_PROP_COLOR_GAIN_INT);
-    preset.colorContrast              = getPropertyValue<int>(owner, OB_PROP_COLOR_CONTRAST_INT);
-    preset.colorSaturation            = getPropertyValue<int>(owner, OB_PROP_COLOR_SATURATION_INT);
-    preset.colorSharpness             = getPropertyValue<int>(owner, OB_PROP_COLOR_SHARPNESS_INT);
-    preset.colorBrightness            = getPropertyValue<int>(owner, OB_PROP_COLOR_BRIGHTNESS_INT);
-    preset.colorHue                   = getPropertyValue<int>(owner, OB_PROP_COLOR_HUE_INT);
-    preset.colorBacklightCompensation = getPropertyValue<bool>(owner, OB_PROP_COLOR_BACKLIGHT_COMPENSATION_INT);
-    preset.colorPowerLineFrequency    = getPropertyValue<int>(owner, OB_PROP_COLOR_POWER_LINE_FREQUENCY_INT);
+    // Helper to read properties with fallback for devices that don't support all vendor commands
+    // (e.g. CR-Scan Ferret returns errorCode 2 for unsupported properties)
+    auto safeGetInt = [&](uint32_t propId) -> int {
+        try { return getPropertyValue<int>(owner, propId); } catch(...) { return 0; }
+    };
+    auto safeGetBool = [&](uint32_t propId) -> bool {
+        try { return getPropertyValue<bool>(owner, propId); } catch(...) { return false; }
+    };
+
+    preset.laserState                 = safeGetInt(OB_PROP_LASER_CONTROL_INT);
+    preset.laserPowerLevel            = safeGetInt(OB_PROP_LASER_POWER_LEVEL_CONTROL_INT);
+    preset.depthAutoExposure          = safeGetBool(OB_PROP_DEPTH_AUTO_EXPOSURE_BOOL);
+    preset.depthExposureTime          = safeGetInt(OB_PROP_IR_EXPOSURE_INT);
+    preset.depthGain                  = safeGetInt(OB_PROP_IR_GAIN_INT);
+    preset.depthBrightness            = safeGetInt(OB_PROP_IR_BRIGHTNESS_INT);
+    preset.colorAutoExposure          = safeGetBool(OB_PROP_COLOR_AUTO_EXPOSURE_BOOL);
+    preset.colorExposureTime          = safeGetInt(OB_PROP_COLOR_EXPOSURE_INT);
+    preset.colorGain                  = safeGetInt(OB_PROP_COLOR_GAIN_INT);
+    preset.colorContrast              = safeGetInt(OB_PROP_COLOR_CONTRAST_INT);
+    preset.colorSaturation            = safeGetInt(OB_PROP_COLOR_SATURATION_INT);
+    preset.colorSharpness             = safeGetInt(OB_PROP_COLOR_SHARPNESS_INT);
+    preset.colorBrightness            = safeGetInt(OB_PROP_COLOR_BRIGHTNESS_INT);
+    preset.colorHue                   = safeGetInt(OB_PROP_COLOR_HUE_INT);
+    preset.colorBacklightCompensation = safeGetBool(OB_PROP_COLOR_BACKLIGHT_COMPENSATION_INT);
+    preset.colorPowerLineFrequency    = safeGetInt(OB_PROP_COLOR_POWER_LINE_FREQUENCY_INT);
 
     {
         auto depthWorkModeManager = owner->getComponentT<G330DepthWorkModeManager>(OB_DEV_COMPONENT_DEPTH_WORK_MODE_MANAGER);
