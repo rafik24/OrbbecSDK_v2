@@ -241,6 +241,18 @@ UvcControlRange ObLibuvcDevicePort::getPuRange(uint32_t propertyId) {
     int                                   min, max, step, def;
 
     int control = obPropToUvcCS(static_cast<OBPropertyID>(propertyId), unit);
+
+    // Quick probe: try GET_MAX first. If it fails, the control is unsupported — skip remaining queries.
+    // This avoids 4 USB transfers (each with timeout) for unsupported controls.
+    {
+        unsigned char probe[4] = { 0 };
+        int probeResult = uvc_get_ctrl(uvcDevHandle_, unit, control, probe, sizeof(probe), UVC_GET_MAX);
+        if(probeResult < 0) {
+            LOG_DEBUG("getPuRange: control {} on unit {} not supported (error={}), returning zero range", control, unit, probeResult);
+            return UvcControlRange(0, 0, 1, 0);
+        }
+    }
+
     if(propertyId == OB_PROP_COLOR_AUTO_EXPOSURE_PRIORITY_INT || propertyId == OB_PROP_COLOR_AUTO_EXPOSURE_BOOL
        || propertyId == OB_PROP_COLOR_AUTO_WHITE_BALANCE_BOOL) {
         min  = 0;
@@ -469,9 +481,13 @@ int32_t ObLibuvcDevicePort::getCtrl(uvc_req_code action, uint8_t control, uint8_
     unsigned char buffer[4] = { 0 };
     int32_t       ret       = 0;
 
-    uint32_t transferred;
+    int transferred = uvc_get_ctrl(uvcDevHandle_, unit, control, buffer, sizeof(buffer), action);
 
-    transferred = uvc_get_ctrl(uvcDevHandle_, unit, control, buffer, sizeof(buffer), action);
+    // Check for USB transfer errors (negative return = libuvc error code)
+    if(transferred < 0) {
+        LOG_DEBUG("getCtrl failed: control={}, unit={}, error={}", control, unit, transferred);
+        return 0;
+    }
 
     if(control == UVC_PU_BRIGHTNESS_CONTROL || control == UVC_PU_HUE_CONTROL) {
         ret = (short)SW_TO_SHORT(buffer);
@@ -489,8 +505,6 @@ int32_t ObLibuvcDevicePort::getCtrl(uvc_req_code action, uint8_t control, uint8_
         ret = DW_TO_INT(buffer);
         break;
     default:
-        // Some devices (e.g. CR-Scan Ferret) return unexpected control sizes.
-        // Return 0 instead of throwing to allow initialization to continue.
         LOG_WARN("UVC control returned unsupported length: {}", transferred);
         ret = 0;
     }
@@ -550,9 +564,10 @@ void ObLibuvcDevicePort::setCtrl(uvc_req_code action, uint8_t control, uint8_t u
     unsigned char buffer[4];
     INT_TO_DW(value, buffer);
 
-    uint32_t transferred;
-    transferred = uvc_set_ctrl(uvcDevHandle_, unit, control, buffer, sizeof(int32_t));
-    (void)transferred;
+    int transferred = uvc_set_ctrl(uvcDevHandle_, unit, control, buffer, sizeof(int32_t));
+    if(transferred < 0) {
+        LOG_DEBUG("setCtrl failed: control={}, unit={}, error={}", control, unit, transferred);
+    }
 }
 
 std::vector<ObLibuvcDevicePort::uvcProfile> ObLibuvcDevicePort::queryAvailableUvcProfile() const {
