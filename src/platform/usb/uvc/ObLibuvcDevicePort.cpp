@@ -3,6 +3,9 @@
 
 #include "ObLibuvcDevicePort.hpp"
 #include "UvcTypes.hpp"
+
+// CR-Scan Ferret PID — PU control queries timeout and corrupt USB pipe
+static constexpr uint16_t CR_SCAN_FERRET_PID = 0x069C;
 #include "logger/Logger.hpp"
 #include "exception/ObException.hpp"
 #include "utils/Utils.hpp"
@@ -216,6 +219,12 @@ void ObLibuvcDevicePort::stopAllStream() {
 }
 
 bool ObLibuvcDevicePort::getPu(uint32_t propertyId, int32_t &value) {
+    // CR-Scan Ferret: skip ALL PU control queries — they timeout and corrupt the USB pipe,
+    // killing all subsequent XU commands. Confirmed by USB trace: Creality Scan never uses PU controls.
+    if(portInfo_->pid == CR_SCAN_FERRET_PID) {
+        value = 0;
+        return true;
+    }
     std::lock_guard<std::recursive_mutex> lock(ctrlMutex_);
     int                                   unit    = 0;
     int                                   control = obPropToUvcCS(static_cast<OBPropertyID>(propertyId), unit);
@@ -226,6 +235,9 @@ bool ObLibuvcDevicePort::getPu(uint32_t propertyId, int32_t &value) {
 }
 
 bool ObLibuvcDevicePort::setPu(uint32_t propertyId, int32_t value) {
+    if(portInfo_->pid == CR_SCAN_FERRET_PID) {
+        return true;
+    }
     std::lock_guard<std::recursive_mutex> lock(ctrlMutex_);
     int                                   unit;
     int                                   control = obPropToUvcCS(static_cast<OBPropertyID>(propertyId), unit);
@@ -236,6 +248,9 @@ bool ObLibuvcDevicePort::setPu(uint32_t propertyId, int32_t value) {
 }
 
 UvcControlRange ObLibuvcDevicePort::getPuRange(uint32_t propertyId) {
+    if(portInfo_->pid == CR_SCAN_FERRET_PID) {
+        return UvcControlRange(0, 0, 1, 0);
+    }
     std::lock_guard<std::recursive_mutex> lock(ctrlMutex_);
     int                                   unit = 0;
     int                                   min, max, step, def;
