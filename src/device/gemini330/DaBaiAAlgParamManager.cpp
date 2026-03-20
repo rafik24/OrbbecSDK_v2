@@ -174,7 +174,9 @@ void DaBaiAAlgParamManager::fetchParamFromDevice() {
         disparityParam_.zpps         = depthCalib.z0 / depthCalib.focalPix;
         disparityParam_.bitSize      = 14;  // low 14 bit
         disparityParam_.dispIntPlace = 8;
-        disparityParam_.unit         = depthCalib.unit;
+        // CR-Scan Ferret reports unit=0.5 which causes "invalid params" in libFilterProcessor.
+        // Override to 1.0 which the filter accepts.
+        disparityParam_.unit         = (depthCalib.unit < 1.0f) ? 1.0f : depthCalib.unit;
         disparityParam_.dispOffset   = depthCalib.dispOffset;
         disparityParam_.invalidDisp  = depthCalib.invalidDisp;
         disparityParam_.packMode     = OB_DISP_PACK_MX6800_MONOCULAR;
@@ -338,7 +340,9 @@ void DaBaiAAlgParamManager::reFetchDisparityParams() {
         disparityParam_.zpps         = depthCalib.z0 / depthCalib.focalPix;
         disparityParam_.bitSize      = 14;  // low 14 bit
         disparityParam_.dispIntPlace = 8;
-        disparityParam_.unit         = depthCalib.unit;
+        // CR-Scan Ferret reports unit=0.5 which causes "invalid params" in libFilterProcessor.
+        // Override to 1.0 which the filter accepts.
+        disparityParam_.unit         = (depthCalib.unit < 1.0f) ? 1.0f : depthCalib.unit;
         disparityParam_.dispOffset   = depthCalib.dispOffset;
         disparityParam_.invalidDisp  = depthCalib.invalidDisp;
         disparityParam_.packMode     = OB_DISP_PACK_MX6800_MONOCULAR;
