@@ -157,6 +157,16 @@ void DaBaiAAlgParamManager::fetchParamFromDevice() {
         auto propServer      = owner->getPropertyServer();
         depthCalibParamList_ = propServer->getStructureDataListProtoV1_1_T<OBDepthCalibrationParam, 1>(OB_RAW_DATA_DEPTH_CALIB_PARAM);
 
+        LOG_INFO("Ferret debug: depthCalibParamList_ count={}, sizeof(OBDepthCalibrationParam)={}",
+                 depthCalibParamList_.size(), sizeof(OBDepthCalibrationParam));
+        if(!depthCalibParamList_.empty()) {
+            const auto &dc = depthCalibParamList_.front();
+            LOG_INFO("Ferret depth calib: baseline={}, z0={}, focalPix={}, unit={}, dispOffset={}, invalidDisp={}",
+                     dc.baseline, dc.z0, dc.focalPix, dc.unit, dc.dispOffset, dc.invalidDisp);
+        } else {
+            LOG_WARN("Ferret: depthCalibParamList_ is EMPTY");
+        }
+
         const auto &depthCalib       = depthCalibParamList_.front();
         disparityParam_.baseline     = depthCalib.baseline;
         disparityParam_.zpd          = depthCalib.z0;
@@ -178,7 +188,17 @@ void DaBaiAAlgParamManager::fetchParamFromDevice() {
         auto owner           = getOwner();
         auto propServer      = owner->getPropertyServer();
         auto cameraParamList = propServer->getStructureDataListProtoV1_1_T<OBCameraParam_Internal_V0, 0>(OB_RAW_DATA_ALIGN_CALIB_PARAM);
+        LOG_INFO("Ferret debug: cameraParamList count={}, sizeof(OBCameraParam_Internal_V0)={}",
+                 cameraParamList.size(), sizeof(OBCameraParam_Internal_V0));
         for(auto &cameraParam: cameraParamList) {
+            LOG_INFO("Ferret camera param: depth fx={}, fy={}, cx={}, cy={}, w={}, h={}",
+                     cameraParam.depthIntrinsic.fx, cameraParam.depthIntrinsic.fy,
+                     cameraParam.depthIntrinsic.cx, cameraParam.depthIntrinsic.cy,
+                     cameraParam.depthIntrinsic.width, cameraParam.depthIntrinsic.height);
+            LOG_INFO("Ferret camera param: rgb fx={}, fy={}, cx={}, cy={}, w={}, h={}",
+                     cameraParam.rgbIntrinsic.fx, cameraParam.rgbIntrinsic.fy,
+                     cameraParam.rgbIntrinsic.cx, cameraParam.rgbIntrinsic.cy,
+                     cameraParam.rgbIntrinsic.width, cameraParam.rgbIntrinsic.height);
             OBCameraParam param;
             param.depthIntrinsic = cameraParam.depthIntrinsic;
             param.rgbIntrinsic   = cameraParam.rgbIntrinsic;

@@ -90,12 +90,13 @@ void DabaiADevice::init() {
     auto presetManager = std::make_shared<DaBaiAPresetManager>(this);
     registerComponent(OB_DEV_COMPONENT_PRESET_MANAGER, presetManager);
 
-    // CR-Scan Ferret: AlgParamManager XU reads now work (PU controls skipped, pipe clean),
-    // but some calibration data has incompatible format causing crash in fixD2CParmaList().
-    // Skip for now — depth streams raw Y14 disparity without depth conversion.
-    if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+    // Re-enabled for Ferret with safety wrapper — dump calibration data before any crash
+    try {
         auto algParamManager = std::make_shared<DaBaiAAlgParamManager>(this);
         registerComponent(OB_DEV_COMPONENT_ALG_PARAM_MANAGER, algParamManager);
+    }
+    catch(const std::exception &e) {
+        LOG_ERROR("AlgParamManager init failed (non-fatal): {}", e.what());
     }
 
     if(getFirmwareVersionInt() >= 10700) {
