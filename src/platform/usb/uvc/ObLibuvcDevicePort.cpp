@@ -120,23 +120,27 @@ void ObLibuvcDevicePort::startStream(std::shared_ptr<const StreamProfile> profil
     // The Ferret requires vendor property SET via XU to enable streaming before the
     // standard UVC stream negotiation will work.
     if(portInfo_->pid == CR_SCAN_FERRET_PID) {
-        // Property 0x000E = depth/IR stream enable, Property 0x0051 = IR stream enable
-        // Send via the 64-byte XU control channel (control selector 2, unit 4)
-        uint8_t enableCmd[64] = { 0 };
-        enableCmd[0] = 0x47; enableCmd[1] = 0x4D;  // "GM" magic
-        enableCmd[2] = 0x04; enableCmd[3] = 0x00;  // cmd = SET (0x0004)
-        enableCmd[4] = 0x02; enableCmd[5] = 0x00;  // sub_cmd
-        enableCmd[6] = 0xE0; enableCmd[7] = 0x00;  // seq
-        // Enable stream property based on endpoint
-        uint32_t propId = (selectedUvcProfile.endpointAddress == 0x81) ? 0x000E : 0x0051;
-        memcpy(&enableCmd[8], &propId, 4);
-        uint32_t val = 1;
-        memcpy(&enableCmd[12], &val, 4);
-        setXu(OB_VENDOR_XU_CTRL_ID_64, enableCmd, 64);
-        uint8_t resp[64] = { 0 };
-        uint32_t respLen = 64;
-        getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
-        LOG_DEBUG("Ferret vendor stream enable sent for EP 0x{:02x}, prop 0x{:04x}", selectedUvcProfile.endpointAddress, propId);
+        // The Ferret requires BOTH vendor stream enable properties to be set before ANY
+        // stream will work correctly. Discovery: depth only works after color is enabled first.
+        // The Creality Windows driver also enables both before starting any stream.
+        auto sendVendorEnable = [&](uint32_t propId) {
+            uint8_t cmd[64] = { 0 };
+            cmd[0] = 0x47; cmd[1] = 0x4D;  // "GM" magic
+            cmd[2] = 0x04; cmd[3] = 0x00;  // cmd = SET (0x0004)
+            cmd[4] = 0x02; cmd[5] = 0x00;  // sub_cmd
+            cmd[6] = 0xE0; cmd[7] = 0x00;  // seq
+            memcpy(&cmd[8], &propId, 4);
+            uint32_t val = 1;
+            memcpy(&cmd[12], &val, 4);
+            setXu(OB_VENDOR_XU_CTRL_ID_64, cmd, 64);
+            uint8_t resp[64] = { 0 };
+            uint32_t respLen = 64;
+            getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
+        };
+        sendVendorEnable(0x0055);  // Reset first
+        sendVendorEnable(0x000E);  // Enable depth stream
+        sendVendorEnable(0x0051);  // Enable IR/color stream
+        LOG_DEBUG("Ferret vendor stream enable: all streams enabled for EP 0x{:02x}", selectedUvcProfile.endpointAddress);
     }
 
     uvc_stream_ctrl_t ctrl;
