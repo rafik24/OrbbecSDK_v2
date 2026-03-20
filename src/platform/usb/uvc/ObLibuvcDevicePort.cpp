@@ -116,7 +116,28 @@ void ObLibuvcDevicePort::startStream(std::shared_ptr<const StreamProfile> profil
         throw std::runtime_error("Failed to find supported format!");
     }
 
-    // libusb_clear_halt(uvcDevHandle_->usb_devh, selectedUvcProfile.endpointAddress);
+    // CR-Scan Ferret: send vendor XU stream enable command before UVC probe/commit.
+    // The Ferret requires vendor property SET via XU to enable streaming before the
+    // standard UVC stream negotiation will work.
+    if(portInfo_->pid == CR_SCAN_FERRET_PID) {
+        // Property 0x000E = depth/IR stream enable, Property 0x0051 = IR stream enable
+        // Send via the 64-byte XU control channel (control selector 2, unit 4)
+        uint8_t enableCmd[64] = { 0 };
+        enableCmd[0] = 0x47; enableCmd[1] = 0x4D;  // "GM" magic
+        enableCmd[2] = 0x04; enableCmd[3] = 0x00;  // cmd = SET (0x0004)
+        enableCmd[4] = 0x02; enableCmd[5] = 0x00;  // sub_cmd
+        enableCmd[6] = 0xE0; enableCmd[7] = 0x00;  // seq
+        // Enable stream property based on endpoint
+        uint32_t propId = (selectedUvcProfile.endpointAddress == 0x81) ? 0x000E : 0x0051;
+        memcpy(&enableCmd[8], &propId, 4);
+        uint32_t val = 1;
+        memcpy(&enableCmd[12], &val, 4);
+        setXu(OB_VENDOR_XU_CTRL_ID_64, enableCmd, 64);
+        uint8_t resp[64] = { 0 };
+        uint32_t respLen = 64;
+        getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
+        LOG_DEBUG("Ferret vendor stream enable sent for EP 0x{:02x}, prop 0x{:04x}", selectedUvcProfile.endpointAddress, propId);
+    }
 
     uvc_stream_ctrl_t ctrl;
     auto              res = uvc_get_stream_ctrl_format_size(uvcDevHandle_, &ctrl, fourCC2UvcFormat(selectedUvcProfile.fourcc), videoProfile->getWidth(),
