@@ -178,3 +178,33 @@ Calibration (S/N: BC2T341012J):
   Depth:       fx=956.62 fy=956.62 cx=638.94 cy=407.10 (1280x800)
   RGB:         fx=847.49 fy=847.33 cx=632.66 cy=405.22 (1280x800)
 ```
+
+---
+
+## Segfault Fix
+
+The pre-compiled `libFilterProcessor.so` extension (closed-source, shipped with
+OrbbecViewer) crashes when processing Ferret depth frames. The segfault occurs in
+the disparity-to-depth filter at a fixed code offset (+0x195ec).
+
+**Fix:** Disable the extension:
+```bash
+mv extensions/filters/libFilterProcessor.so extensions/filters/libFilterProcessor.so.disabled
+```
+
+This removes depth post-processing filters (noise removal, hardware D2C) but
+eliminates the crash. All streams work stably with this workaround.
+
+## Startup Checklist
+
+```bash
+# 1. Unload kernel UVC driver (conflicts with libuvc)
+sudo modprobe -r uvcvideo
+
+# 2. Optional: blacklist permanently
+echo "blacklist uvcvideo" | sudo tee /etc/modprobe.d/blacklist-uvcvideo.conf
+
+# 3. Run OrbbecViewer
+cd ~/Downloads/OrbbecViewer_v2.7.6_202602021245_20730ef_linux_x86_64/
+./OrbbecViewer
+```
