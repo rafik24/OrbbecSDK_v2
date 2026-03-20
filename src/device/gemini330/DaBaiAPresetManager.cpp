@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 
 #include "DaBaiAPresetManager.hpp"
+#include "DevicePids.hpp"
 #include "property/InternalProperty.hpp"
 #include "InternalTypes.hpp"
 #include "exception/ObException.hpp"
@@ -291,9 +292,14 @@ void DaBaiAPresetManager::storeCurrentParamsAsCustomPreset(const std::string &pr
     preset.colorSaturation            = safeGetInt(OB_PROP_COLOR_SATURATION_INT);
     preset.colorSharpness             = safeGetInt(OB_PROP_COLOR_SHARPNESS_INT);
     preset.colorBrightness            = safeGetInt(OB_PROP_COLOR_BRIGHTNESS_INT);
-    preset.colorHue                   = safeGetInt(OB_PROP_COLOR_HUE_INT);
-    preset.colorBacklightCompensation = safeGetBool(OB_PROP_COLOR_BACKLIGHT_COMPENSATION_INT);
-    preset.colorPowerLineFrequency    = safeGetInt(OB_PROP_COLOR_POWER_LINE_FREQUENCY_INT);
+    // Skip HUE, BACKLIGHT_COMPENSATION, POWER_LINE_FREQUENCY for the Ferret —
+    // these PU controls are unsupported on its RGB camera and the 100ms timeouts
+    // corrupt the USB device state, killing all subsequent XU commands.
+    if(owner->getInfo()->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+        preset.colorHue                   = safeGetInt(OB_PROP_COLOR_HUE_INT);
+        preset.colorBacklightCompensation = safeGetBool(OB_PROP_COLOR_BACKLIGHT_COMPENSATION_INT);
+        preset.colorPowerLineFrequency    = safeGetInt(OB_PROP_COLOR_POWER_LINE_FREQUENCY_INT);
+    }
 
     {
         auto depthWorkModeManager = owner->getComponentT<G330DepthWorkModeManager>(OB_DEV_COMPONENT_DEPTH_WORK_MODE_MANAGER);
