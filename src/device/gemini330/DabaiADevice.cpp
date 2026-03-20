@@ -90,9 +90,9 @@ void DabaiADevice::init() {
     auto presetManager = std::make_shared<DaBaiAPresetManager>(this);
     registerComponent(OB_DEV_COMPONENT_PRESET_MANAGER, presetManager);
 
-    // CR-Scan Ferret: skip AlgParamManager — the vendor XU calibration reads corrupt
-    // the device's firmware state, causing all subsequent XU commands to return zeros.
-    // The Ferret uses a different vendor protocol that isn't compatible with DaBaiA calibration reads.
+    // CR-Scan Ferret: AlgParamManager XU reads now work (PU controls skipped, pipe clean),
+    // but some calibration data has incompatible format causing crash in fixD2CParmaList().
+    // Skip for now — depth streams raw Y14 disparity without depth conversion.
     if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
         auto algParamManager = std::make_shared<DaBaiAAlgParamManager>(this);
         registerComponent(OB_DEV_COMPONENT_ALG_PARAM_MANAGER, algParamManager);
