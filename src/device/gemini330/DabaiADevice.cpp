@@ -52,6 +52,7 @@ namespace libobsensor {
 
 constexpr uint8_t  INTERFACE_COLOR        = 4;
 constexpr uint8_t  INTERFACE_DEPTH        = 0;
+constexpr uint8_t  INTERFACE_IR           = 2;  // CR-Scan Ferret: IR on separate interface
 constexpr uint16_t GMSL_MAX_CMD_DATA_SIZE = 232;
 
 DabaiADevice::DabaiADevice(const std::shared_ptr<const IDeviceEnumInfo> &info) : DeviceBase(info), isGmslDevice_(info->getConnectionType() == "GMSL2") {
@@ -419,10 +420,28 @@ void DabaiADevice::initSensorList() {
             return frameProcessor;
         });
 
+        // CR-Scan Ferret: IR cameras are on a separate USB interface (infIndex=2)
+        // from the depth camera (infIndex=0). Use the IR port so all streams can
+        // run simultaneously — Creality Scan opens intf 1 (depth), 3 (IR), 5 (color)
+        // concurrently as confirmed by USB 3.0 trace analysis.
+        auto irPortInfo = depthPortInfo;  // default: share with depth (G330 behavior)
+        if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID) {
+            auto irPortInfoIter = std::find_if(sourcePortInfoList.begin(), sourcePortInfoList.end(),
+                [](const std::shared_ptr<const SourcePortInfo> &portInfo) {
+                    return portInfo->portType == SOURCE_PORT_USB_UVC
+                        && std::dynamic_pointer_cast<const USBSourcePortInfo>(portInfo)->infIndex == INTERFACE_IR;
+                });
+            if(irPortInfoIter != sourcePortInfoList.end()) {
+                irPortInfo = *irPortInfoIter;
+                LOG_INFO("Ferret: IR sensors using separate port (infIndex={})",
+                         std::dynamic_pointer_cast<const USBSourcePortInfo>(irPortInfo)->infIndex);
+            }
+        }
+
         registerComponent(
             OB_DEV_COMPONENT_LEFT_IR_SENSOR,
-            [this, depthPortInfo]() {
-                auto port   = getSourcePort(depthPortInfo);
+            [this, irPortInfo]() {
+                auto port   = getSourcePort(irPortInfo);
                 auto sensor = std::make_shared<VideoSensor>(this, OB_SENSOR_IR_LEFT, port);
 
                 std::vector<FormatFilterConfig> formatFilterConfigs = {
@@ -459,7 +478,7 @@ void DabaiADevice::initSensorList() {
                 return sensor;
             },
             true);
-        registerSensorPortInfo(OB_SENSOR_IR_LEFT, depthPortInfo);
+        registerSensorPortInfo(OB_SENSOR_IR_LEFT, irPortInfo);
 
         registerComponent(OB_DEV_COMPONENT_LEFT_IR_FRAME_PROCESSOR, [this]() {
             auto factory        = getComponentT<FrameProcessorFactory>(OB_DEV_COMPONENT_FRAME_PROCESSOR_FACTORY);
@@ -469,8 +488,8 @@ void DabaiADevice::initSensorList() {
 
         registerComponent(
             OB_DEV_COMPONENT_RIGHT_IR_SENSOR,
-            [this, depthPortInfo]() {
-                auto port   = getSourcePort(depthPortInfo);
+            [this, irPortInfo]() {
+                auto port   = getSourcePort(irPortInfo);
                 auto sensor = std::make_shared<VideoSensor>(this, OB_SENSOR_IR_RIGHT, port);
 
                 std::vector<FormatFilterConfig> formatFilterConfigs = {
@@ -509,7 +528,7 @@ void DabaiADevice::initSensorList() {
                 return sensor;
             },
             true);
-        registerSensorPortInfo(OB_SENSOR_IR_RIGHT, depthPortInfo);
+        registerSensorPortInfo(OB_SENSOR_IR_RIGHT, irPortInfo);
 
         registerComponent(OB_DEV_COMPONENT_RIGHT_IR_FRAME_PROCESSOR, [this]() {
             auto factory        = getComponentT<FrameProcessorFactory>(OB_DEV_COMPONENT_FRAME_PROCESSOR_FACTORY);
