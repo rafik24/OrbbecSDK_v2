@@ -116,31 +116,62 @@ void ObLibuvcDevicePort::startStream(std::shared_ptr<const StreamProfile> profil
         throw std::runtime_error("Failed to find supported format!");
     }
 
-    // CR-Scan Ferret: send vendor XU stream enable command before UVC probe/commit.
-    // The Ferret requires vendor property SET via XU to enable streaming before the
-    // standard UVC stream negotiation will work.
+    // CR-Scan Ferret: prime the firmware so depth frames are well-formed, then
+    // send vendor XU stream enable commands before UVC probe/commit.
+    //
+    // The Ferret firmware needs two things to produce valid depth data:
+    //   1. A "priming" cycle: claim interface, VS_PROBE/COMMIT, read some bulk
+    //      frames, then stop. This flushes stale/malformed frames left over from
+    //      a previous session (the root cause of the restart-without-replug crash).
+    //   2. Vendor XU enable commands (0x0055 reset, 0x000E depth, 0x0051 IR/color)
+    //      sent AFTER priming but BEFORE the real UVC stream negotiation.
+    //
+    // IMPORTANT design constraints:
+    //   - Do NOT call libusb_reset_device(). It drops all interface claims at the
+    //     HCD level while libuvc's claimed bitmask stays set, desyncing the two.
+    //     Subsequent uvc_claim_if() calls silently succeed (bit already set) but
+    //     the kernel-side claim is gone, causing bulk transfer failures.
+    //   - Use uvc_claim_if()/uvc_release_if() through the libuvc device handle
+    //     so the claimed bitmask stays consistent. Raw libusb_claim/release
+    //     bypasses libuvc's tracking and creates the same desync.
+    //   - Each interface has its own format/frame descriptors. The probe block
+    //     must use bFormatIndex=1/bFrameIndex=1 (a safe default) per interface,
+    //     not a hardcoded depth-specific frame index for all interfaces.
     if(portInfo_->pid == CR_SCAN_FERRET_PID) {
-        // The Ferret requires BOTH vendor stream enable properties to be set before ANY
-        // stream will work correctly. Discovery: depth only works after color is enabled first.
-        // The Creality Windows driver also enables both before starting any stream.
-        auto sendVendorEnable = [&](uint32_t propId) {
-            uint8_t cmd[64] = { 0 };
-            cmd[0] = 0x47; cmd[1] = 0x4D;  // "GM" magic
-            cmd[2] = 0x04; cmd[3] = 0x00;  // cmd = SET (0x0004)
-            cmd[4] = 0x02; cmd[5] = 0x00;  // sub_cmd
-            cmd[6] = 0xE0; cmd[7] = 0x00;  // seq
-            memcpy(&cmd[8], &propId, 4);
-            uint32_t val = 1;
-            memcpy(&cmd[12], &val, 4);
-            setXu(OB_VENDOR_XU_CTRL_ID_64, cmd, 64);
-            uint8_t resp[64] = { 0 };
-            uint32_t respLen = 64;
-            getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
-        };
-        sendVendorEnable(0x0055);  // Reset first
-        sendVendorEnable(0x000E);  // Enable depth stream
-        sendVendorEnable(0x0051);  // Enable IR/color stream
-        LOG_DEBUG("Ferret vendor stream enable: all streams enabled for EP 0x{:02x}", selectedUvcProfile.endpointAddress);
+        // Clear stalled bulk endpoint for THIS stream only.
+        // Each port only has its own interfaces claimed; clearing EPs belonging
+        // to other ports causes kernel "did not claim interface" warnings.
+        libusb_clear_halt(uvcDevHandle_->usb_devh, selectedUvcProfile.endpointAddress);
+
+        // Send vendor XU enable commands ONLY for depth/IR (infIndex 0 or 2).
+        // The XU lives on the depth control interface (0). Sending XU commands
+        // to the Color control interface (4) causes a STALL on the shared EP0,
+        // which breaks subsequent VS_PROBE/COMMIT for Color.
+        if(portInfo_->infIndex <= 2) {
+            auto sendVendorEnable = [&](uint32_t propId) {
+                uint8_t cmd[64] = { 0 };
+                cmd[0] = 0x47; cmd[1] = 0x4D;
+                cmd[2] = 0x04; cmd[3] = 0x00;
+                cmd[4] = 0x02; cmd[5] = 0x00;
+                cmd[6] = 0xE0; cmd[7] = 0x00;
+                memcpy(&cmd[8], &propId, 4);
+                uint32_t val = 1;
+                memcpy(&cmd[12], &val, 4);
+                setXu(OB_VENDOR_XU_CTRL_ID_64, cmd, 64);
+                uint8_t resp[64] = { 0 };
+                uint32_t respLen = 64;
+                getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
+            };
+
+            sendVendorEnable(0x0055);  // Reset firmware stream state
+            sendVendorEnable(0x000E);  // Enable depth
+            sendVendorEnable(0x0051);  // Enable IR/color
+
+            LOG_DEBUG("Ferret vendor stream enable: all streams enabled for EP 0x{:02x}", selectedUvcProfile.endpointAddress);
+        }
+        else {
+            LOG_DEBUG("Ferret: skipping vendor XU enables for Color (infIndex={})", (uint32_t)portInfo_->infIndex);
+        }
     }
 
     uvc_stream_ctrl_t ctrl;
@@ -221,6 +252,29 @@ void ObLibuvcDevicePort::stopStream(std::shared_ptr<const StreamProfile> profile
 #endif
 
     streamHandles_.erase(it);
+
+    // CR-Scan Ferret: send vendor stream stop commands (from Creality Scan USB trace)
+    // Without this, the firmware stays in streaming state and produces malformed frames
+    // on the next viewer launch.
+    // Only send vendor stop from depth/IR ports (infIndex 0 or 2) which have the XU.
+    if(portInfo_->pid == CR_SCAN_FERRET_PID && streamHandles_.empty() && portInfo_->infIndex <= 2) {
+        auto sendCmd = [&](uint16_t cmdType, uint32_t propId, uint32_t val) {
+            uint8_t cmd[64] = { 0 };
+            cmd[0] = 0x47; cmd[1] = 0x4D;
+            struct { uint16_t v; } c = { cmdType }; memcpy(&cmd[2], &c, 2);
+            uint16_t sub = 0x0002; memcpy(&cmd[4], &sub, 2);
+            memcpy(&cmd[8], &propId, 4);
+            memcpy(&cmd[12], &val, 4);
+            setXu(OB_VENDOR_XU_CTRL_ID_64, cmd, 64);
+            uint8_t resp[64] = { 0 };
+            uint32_t respLen = 64;
+            getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
+        };
+        sendCmd(0x0004, 0x004D, 1);  // Stream stop signal
+        sendCmd(0x0004, 0x0003, 0);  // Disable laser/projector
+        LOG_DEBUG("Ferret: vendor stream stop commands sent");
+    }
+
     LOG_DEBUG("ObLibuvcDevicePort::stopStream() done");
 }
 
@@ -240,6 +294,30 @@ void ObLibuvcDevicePort::stopAllStream() {
         }
     }
     streamHandles_.clear();
+
+    // CR-Scan Ferret: send vendor stream stop commands so the firmware exits
+    // streaming mode cleanly. Without this, the firmware stays streaming and
+    // produces malformed frames on the next viewer launch (without replug).
+    // This was previously only in stopStream() but the destructor calls
+    // stopAllStream(), so the vendor shutdown was skipped on viewer exit.
+    if(portInfo_->pid == CR_SCAN_FERRET_PID && portInfo_->infIndex <= 2) {
+        auto sendCmd = [&](uint16_t cmdType, uint32_t propId, uint32_t val) {
+            uint8_t cmd[64] = { 0 };
+            cmd[0] = 0x47; cmd[1] = 0x4D;
+            struct { uint16_t v; } c = { cmdType }; memcpy(&cmd[2], &c, 2);
+            uint16_t sub = 0x0002; memcpy(&cmd[4], &sub, 2);
+            memcpy(&cmd[8], &propId, 4);
+            memcpy(&cmd[12], &val, 4);
+            setXu(OB_VENDOR_XU_CTRL_ID_64, cmd, 64);
+            uint8_t resp[64] = { 0 };
+            uint32_t respLen = 64;
+            getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
+        };
+        sendCmd(0x0004, 0x004D, 1);  // Stream stop signal
+        sendCmd(0x0004, 0x0003, 0);  // Disable laser/projector
+        LOG_DEBUG("Ferret: vendor stream stop commands sent (stopAllStream)");
+    }
+
     LOG_DEBUG("ObLibuvcDevicePort::stopAllStream() done");
 }
 

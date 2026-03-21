@@ -354,12 +354,35 @@ void DabaiADevice::initSensorList() {
 
                 auto propServer = getPropertyServer();
                 auto depthUnit  = propServer->getPropertyValueT<float>(OB_PROP_DEPTH_UNIT_FLEXIBLE_ADJUSTMENT_FLOAT);
+                // CR-Scan Ferret reports depth_unit=0.5 which DisparityTransform rejects as "invalid params".
+                if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID && depthUnit < 1.0f) {
+                    depthUnit = 1.0f;
+                }
                 sensor->setDepthUnit(depthUnit);
 
                 auto hwD2D = propServer->getPropertyValueT<bool>(OB_PROP_DISPARITY_TO_DEPTH_BOOL);
                 sensor->markOutputDisparityFrame(!hwD2D);
 
                 initSensorStreamProfile(sensor);
+
+                // CR-Scan Ferret: pre-bind disparity params during sensor creation.
+                // Without this, the first depth frames reach FilterProcessor before
+                // bindDisparityParam runs (it normally fires in the STREAMING callback),
+                // causing a segfault in the uninitialized disparity-to-depth LUT.
+                if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID) {
+                    try {
+                        auto algParamManager = getComponentT<DaBaiAAlgParamManager>(OB_DEV_COMPONENT_ALG_PARAM_MANAGER, false);
+                        if(algParamManager) {
+                            algParamManager->reFetchDisparityParams();
+                            auto profiles = sensor->getStreamProfileList();
+                            if(!profiles.empty()) {
+                                algParamManager->bindDisparityParam({ profiles[0] });
+                            }
+                        }
+                    } catch(...) {
+                        LOG_WARN("Ferret: pre-bind disparity params failed, will retry on stream start");
+                    }
+                }
 
                 sensor->registerStreamStateChangedCallback([&](OBStreamState state, const std::shared_ptr<const StreamProfile> &sp) {
                     if(state == STREAM_STATE_STREAMING) {
@@ -683,6 +706,10 @@ void                 DabaiADevice::initSensorListGMSL() {
 
                 auto propServer = getPropertyServer();
                 auto depthUnit  = propServer->getPropertyValueT<float>(OB_PROP_DEPTH_UNIT_FLEXIBLE_ADJUSTMENT_FLOAT);
+                // CR-Scan Ferret reports depth_unit=0.5 which DisparityTransform rejects as "invalid params".
+                if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID && depthUnit < 1.0f) {
+                    depthUnit = 1.0f;
+                }
                 sensor->setDepthUnit(depthUnit);
 
                 auto hwD2D = propServer->getPropertyValueT<bool>(OB_PROP_DISPARITY_TO_DEPTH_BOOL);
