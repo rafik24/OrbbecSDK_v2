@@ -348,12 +348,19 @@ void DabaiADevice::initSensorList() {
                 sensor->setGlobalTimestampCalculator(globalFrameTimestampCalculator);
 
                 auto frameProcessor = getComponentT<FrameProcessor>(OB_DEV_COMPONENT_DEPTH_FRAME_PROCESSOR, false);
-                if(frameProcessor) {
+                // CR-Scan Ferret: create the frame processor (so the viewer finds it)
+                // but DON'T attach it to the sensor. FilterProcessor.so crashes when
+                // processing Ferret depth frames. Without attachment, frames bypass
+                // FilterProcessor and go directly to the viewer callback.
+                if(frameProcessor && deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
                     sensor->setFrameProcessor(frameProcessor.get());
                 }
 
                 auto propServer = getPropertyServer();
                 auto depthUnit  = propServer->getPropertyValueT<float>(OB_PROP_DEPTH_UNIT_FLEXIBLE_ADJUSTMENT_FLOAT);
+                if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID && depthUnit < 1.0f) {
+                    depthUnit = 1.0f;
+                }
                 sensor->setDepthUnit(depthUnit);
 
                 auto hwD2D = propServer->getPropertyValueT<bool>(OB_PROP_DISPARITY_TO_DEPTH_BOOL);
@@ -683,6 +690,9 @@ void                 DabaiADevice::initSensorListGMSL() {
 
                 auto propServer = getPropertyServer();
                 auto depthUnit  = propServer->getPropertyValueT<float>(OB_PROP_DEPTH_UNIT_FLEXIBLE_ADJUSTMENT_FLOAT);
+                if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID && depthUnit < 1.0f) {
+                    depthUnit = 1.0f;
+                }
                 sensor->setDepthUnit(depthUnit);
 
                 auto hwD2D = propServer->getPropertyValueT<bool>(OB_PROP_DISPARITY_TO_DEPTH_BOOL);
