@@ -27,6 +27,7 @@ private:
     void initSensorListGMSL();
     void initProperties();
     void initSensorStreamProfile(std::shared_ptr<ISensor> sensor);
+    void initFerretStreaming();  // CR-Scan Ferret: one-time vendor XU enable sequence
 
     std::shared_ptr<const StreamProfile> loadDefaultStreamProfile(OBSensorType sensorType);
     void                                 loadDefaultDepthPostProcessingConfig();
@@ -36,6 +37,7 @@ private:
     const uint64_t                                              frameTimeFreq_  = 1000000;  // in us
     std::function<std::shared_ptr<IFrameTimestampCalculator>()> videoFrameTimestampCalculatorCreator_;
     bool                                                        isGmslDevice_;
+    bool                                                        ferretStreamsInitialized_ = false;
 
     std::map<OBSensorType, std::vector<std::shared_ptr<IFilter>>> sensorFilterListMap_;
 };

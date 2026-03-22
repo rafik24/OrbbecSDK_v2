@@ -348,9 +348,15 @@ void DabaiADevice::initSensorList() {
                 auto globalFrameTimestampCalculator = std::make_shared<GlobalTimestampCalculator>(this, deviceTimeFreq_, frameTimeFreq_);
                 sensor->setGlobalTimestampCalculator(globalFrameTimestampCalculator);
 
-                auto frameProcessor = getComponentT<FrameProcessor>(OB_DEV_COMPONENT_DEPTH_FRAME_PROCESSOR, false);
-                if(frameProcessor) {
-                    sensor->setFrameProcessor(frameProcessor.get());
+                // CR-Scan Ferret: skip depth frame processor entirely.
+                // The closed-source FilterProcessor.so crashes on Ferret depth frames
+                // (segfault in disparity-to-depth LUT at +0x195ec). The privfilter's
+                // DisparityTransform handles D2D conversion safely via the sensor filter list.
+                if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+                    auto frameProcessor = getComponentT<FrameProcessor>(OB_DEV_COMPONENT_DEPTH_FRAME_PROCESSOR, false);
+                    if(frameProcessor) {
+                        sensor->setFrameProcessor(frameProcessor.get());
+                    }
                 }
 
                 auto propServer = getPropertyServer();
@@ -366,10 +372,7 @@ void DabaiADevice::initSensorList() {
 
                 initSensorStreamProfile(sensor);
 
-                // CR-Scan Ferret: pre-bind disparity params during sensor creation.
-                // Without this, the first depth frames reach FilterProcessor before
-                // bindDisparityParam runs (it normally fires in the STREAMING callback),
-                // causing a segfault in the uninitialized disparity-to-depth LUT.
+                // CR-Scan Ferret: pre-bind disparity params during sensor creation
                 if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID) {
                     try {
                         auto algParamManager = getComponentT<DaBaiAAlgParamManager>(OB_DEV_COMPONENT_ALG_PARAM_MANAGER, false);
@@ -386,6 +389,9 @@ void DabaiADevice::initSensorList() {
                 }
 
                 sensor->registerStreamStateChangedCallback([&](OBStreamState state, const std::shared_ptr<const StreamProfile> &sp) {
+                    if(state == STREAM_STATE_STARTING) {
+                        initFerretStreaming();
+                    }
                     if(state == STREAM_STATE_STREAMING) {
                         auto algParamManager = getComponentT<DaBaiAAlgParamManager>(OB_DEV_COMPONENT_ALG_PARAM_MANAGER, false);
                         if(algParamManager) {
@@ -400,6 +406,10 @@ void DabaiADevice::initSensorList() {
 
         registerSensorPortInfo(OB_SENSOR_DEPTH, depthPortInfo);
 
+        // CR-Scan Ferret: skip depth frame processor entirely — FilterProcessor.so
+        // crashes on Ferret depth frames. D2D conversion uses the safe privfilter
+        // DisparityTransform via the sensor filter list instead.
+        if(deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
         registerComponent(OB_DEV_COMPONENT_DEPTH_FRAME_PROCESSOR, [this]() {
             auto factory        = getComponentT<FrameProcessorFactory>(OB_DEV_COMPONENT_FRAME_PROCESSOR_FACTORY);
             auto frameProcessor = factory->createFrameProcessor(OB_SENSOR_DEPTH);
@@ -419,6 +429,7 @@ void DabaiADevice::initSensorList() {
             }
             return frameProcessor;
         });
+        }
 
         // CR-Scan Ferret: IR cameras are on a separate USB interface (infIndex=2)
         // from the depth camera (infIndex=0). Use the IR port so all streams can
@@ -1391,4 +1402,56 @@ void DabaiADevice::loadDefaultDepthPostProcessingConfig() {
         LOG_WARN(errorMsg);
     }
 }
+void DabaiADevice::initFerretStreaming() {
+    if(ferretStreamsInitialized_ || deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+        return;
+    }
+    ferretStreamsInitialized_ = true;
+
+    LOG_INFO("Ferret: sending one-time vendor stream enable sequence");
+
+    // Replicate Creality Scan's exact startup sequence from USB 3.0 trace:
+    // 1. Stop any previous streams, 2. Enable depth+IR, 3. Reset+disable IR
+    // This primes the firmware before UVC probe/commit on any interface.
+    auto depthPortInfo = getSensorPortInfo(OB_SENSOR_DEPTH);
+    if(!depthPortInfo) {
+        LOG_WARN("Ferret: no depth port for vendor init");
+        return;
+    }
+
+    try {
+        auto port = getSourcePort(depthPortInfo);
+        auto vendorPort = std::dynamic_pointer_cast<IVendorDataPort>(port);
+        if(!vendorPort) {
+            LOG_WARN("Ferret: depth port has no vendor data interface");
+            return;
+        }
+
+        auto sendCmd = [&](uint32_t propId, uint32_t val) {
+            uint8_t cmd[64] = { 0 };
+            cmd[0] = 0x47; cmd[1] = 0x4D;
+            cmd[2] = 0x04; cmd[3] = 0x00;  // SET
+            cmd[4] = 0x02; cmd[5] = 0x00;  // sub_cmd
+            cmd[6] = 0xE0; cmd[7] = 0x00;  // seq
+            memcpy(&cmd[8], &propId, 4);
+            memcpy(&cmd[12], &val, 4);
+            uint8_t resp[64] = { 0 };
+            vendorPort->sendAndReceive(cmd, 64, resp, 64);
+        };
+
+        sendCmd(0x004D, 1);   // Stream stop
+        sendCmd(0x0003, 0);   // Laser off
+        sendCmd(0x0055, 0);   // Reset stream state
+        sendCmd(0x000E, 1);   // Enable depth engine
+        sendCmd(0x0051, 1);   // Enable IR engine
+        sendCmd(0x0055, 0);   // Reset again (per Creality trace)
+        sendCmd(0x0051, 0);   // Disable IR (re-enabled by UVC stream open)
+
+        LOG_INFO("Ferret: vendor stream enable sequence complete");
+    }
+    catch(const std::exception &e) {
+        LOG_WARN("Ferret: vendor stream init failed: {}", e.what());
+    }
+}
+
 }  // namespace libobsensor

@@ -139,39 +139,11 @@ void ObLibuvcDevicePort::startStream(std::shared_ptr<const StreamProfile> profil
     //     not a hardcoded depth-specific frame index for all interfaces.
     if(portInfo_->pid == CR_SCAN_FERRET_PID) {
         // Clear stalled bulk endpoint for THIS stream only.
-        // Each port only has its own interfaces claimed; clearing EPs belonging
-        // to other ports causes kernel "did not claim interface" warnings.
         libusb_clear_halt(uvcDevHandle_->usb_devh, selectedUvcProfile.endpointAddress);
-
-        // Send vendor XU enable commands ONLY for depth/IR (infIndex 0 or 2).
-        // The XU lives on the depth control interface (0). Sending XU commands
-        // to the Color control interface (4) causes a STALL on the shared EP0,
-        // which breaks subsequent VS_PROBE/COMMIT for Color.
-        if(portInfo_->infIndex <= 2) {
-            auto sendVendorEnable = [&](uint32_t propId) {
-                uint8_t cmd[64] = { 0 };
-                cmd[0] = 0x47; cmd[1] = 0x4D;
-                cmd[2] = 0x04; cmd[3] = 0x00;
-                cmd[4] = 0x02; cmd[5] = 0x00;
-                cmd[6] = 0xE0; cmd[7] = 0x00;
-                memcpy(&cmd[8], &propId, 4);
-                uint32_t val = 1;
-                memcpy(&cmd[12], &val, 4);
-                setXu(OB_VENDOR_XU_CTRL_ID_64, cmd, 64);
-                uint8_t resp[64] = { 0 };
-                uint32_t respLen = 64;
-                getXu(OB_VENDOR_XU_CTRL_ID_64, resp, &respLen);
-            };
-
-            sendVendorEnable(0x0055);  // Reset firmware stream state
-            sendVendorEnable(0x000E);  // Enable depth
-            sendVendorEnable(0x0051);  // Enable IR/color
-
-            LOG_DEBUG("Ferret vendor stream enable: all streams enabled for EP 0x{:02x}", selectedUvcProfile.endpointAddress);
-        }
-        else {
-            LOG_DEBUG("Ferret: skipping vendor XU enables for Color (infIndex={})", (uint32_t)portInfo_->infIndex);
-        }
+        // Vendor XU enables are now sent once by DabaiADevice::initFerretStreaming(),
+        // not per-stream. Sending them per-stream caused: (1) redundant resets that
+        // killed already-running streams, (2) EP0 STALL on Color interface.
+        LOG_DEBUG("Ferret: clear_halt EP 0x{:02x}, vendor enables handled by device init", selectedUvcProfile.endpointAddress);
     }
 
     uvc_stream_ctrl_t ctrl;
