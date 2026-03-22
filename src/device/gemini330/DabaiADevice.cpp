@@ -349,11 +349,7 @@ void DabaiADevice::initSensorList() {
                 sensor->setGlobalTimestampCalculator(globalFrameTimestampCalculator);
 
                 auto frameProcessor = getComponentT<FrameProcessor>(OB_DEV_COMPONENT_DEPTH_FRAME_PROCESSOR, false);
-                // CR-Scan Ferret: create the frame processor (so the viewer finds it)
-                // but DON'T attach it to the sensor. FilterProcessor.so crashes when
-                // processing Ferret depth frames. Without attachment, frames bypass
-                // FilterProcessor and go directly to the viewer callback.
-                if(frameProcessor && deviceInfo_->pid_ != OB_DEVICE_CR_SCAN_FERRET_PID) {
+                if(frameProcessor) {
                     sensor->setFrameProcessor(frameProcessor.get());
                 }
 
@@ -368,6 +364,27 @@ void DabaiADevice::initSensorList() {
                 sensor->markOutputDisparityFrame(!hwD2D);
 
                 initSensorStreamProfile(sensor);
+
+                // CR-Scan Ferret: pre-bind disparity params NOW so FilterProcessor's
+                // LUT is initialized before any frame arrives. Without this,
+                // FilterProcessor segfaults on the first frame. This is why depth
+                // only worked when Color was opened first (gave AlgParamManager
+                // time to bind params before depth frames arrived).
+                if(deviceInfo_->pid_ == OB_DEVICE_CR_SCAN_FERRET_PID) {
+                    try {
+                        auto algParamManager = getComponentT<DaBaiAAlgParamManager>(OB_DEV_COMPONENT_ALG_PARAM_MANAGER, false);
+                        if(algParamManager) {
+                            algParamManager->reFetchDisparityParams();
+                            auto profiles = sensor->getStreamProfileList();
+                            if(!profiles.empty()) {
+                                algParamManager->bindDisparityParam({ profiles[0] });
+                                LOG_INFO("Ferret: disparity params pre-bound for depth");
+                            }
+                        }
+                    } catch(const std::exception &e) {
+                        LOG_WARN("Ferret: pre-bind failed: {}", e.what());
+                    }
+                }
 
                 sensor->registerStreamStateChangedCallback([&](OBStreamState state, const std::shared_ptr<const StreamProfile> &sp) {
                     if(state == STREAM_STATE_STREAMING) {
