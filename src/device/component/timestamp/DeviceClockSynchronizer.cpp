@@ -10,6 +10,7 @@ const std::vector<uint16_t> Mx6600DevPids = {
     0x0670,  // Gemini2
     0x0673,  // Gemini2L
     0x0808,  // Gemini215
+    0x069C,  // CR-Scan Ferret
     0x0809,  // Gemini210
 };
 

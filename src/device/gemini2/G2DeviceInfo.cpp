@@ -5,6 +5,7 @@
 #include "G2Device.hpp"
 #include "G2XLDevice.hpp"
 #include "G210Device.hpp"
+#include "FerretDevice.hpp"
 #include "G435LeDevice.hpp"
 #include "DevicePids.hpp"
 #include "utils/Utils.hpp"
@@ -23,7 +24,7 @@
 namespace libobsensor {
 
 const std::map<int, std::string> G2DeviceNameMap = {
-    { 0x0670, "Gemini2" }, { 0x0673, "Gemini2 L" }, { 0x0671, "Gemini2 XL" }, { 0x0808, "Gemini 215" }, { 0x0809, "Gemini 210" }
+    { 0x0670, "Gemini2" }, { 0x0673, "Gemini2 L" }, { 0x0671, "Gemini2 XL" }, { 0x0808, "Gemini 215" }, { 0x069C, "CR-Scan Ferret" }, { 0x0809, "Gemini 210" }
 };
 
 G2DeviceInfo::G2DeviceInfo(const SourcePortInfoList groupedInfoList) {
@@ -97,6 +98,9 @@ std::shared_ptr<IDevice> G2DeviceInfo::createDevice(OBDeviceAccessMode accessMod
                 return std::make_shared<G2XLNetDevice>(shared_from_this());
             }
             return std::make_shared<G2XLUSBDevice>(shared_from_this());
+        }
+        else if(pid_ == 0x069C) {
+            return std::make_shared<FerretDevice>(shared_from_this());
         }
         else if(pid_ == 0x0808 || pid_ == 0x0809) {
             return std::make_shared<G210Device>(shared_from_this());

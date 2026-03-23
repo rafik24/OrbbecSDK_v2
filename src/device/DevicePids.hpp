@@ -28,6 +28,7 @@ const std::vector<uint16_t> Gemini2DevPids = {
     0x0673,  // Gemini2L
     // 0x0671,  // Gemini2XL // remove g2xl support temporarily as it is currently not fully supported
     0x0808,  // Gemini215
+    0x069C,  // CR-Scan Ferret (Gemini 215 OEM, Creality branded)
     0x0809,  // Gemini210
 };
 

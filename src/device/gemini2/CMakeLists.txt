@@ -14,6 +14,8 @@ target_sources(
     ${CMAKE_CURRENT_LIST_DIR}/G2XLDevice.cpp
     ${CMAKE_CURRENT_LIST_DIR}/G210Device.cpp
     ${CMAKE_CURRENT_LIST_DIR}/G210Device.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/FerretDevice.hpp
+    ${CMAKE_CURRENT_LIST_DIR}/FerretDevice.cpp
     ${CMAKE_CURRENT_LIST_DIR}/G2StreamProfileFilter.hpp
     ${CMAKE_CURRENT_LIST_DIR}/G2StreamProfileFilter.cpp
     ${CMAKE_CURRENT_LIST_DIR}/G2PropertyAccessors.hpp

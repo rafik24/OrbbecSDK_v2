@@ -213,7 +213,7 @@ PlaybackFrameTransformPropertyAccessor::PlaybackFrameTransformPropertyAccessor(c
         accessor_ = std::make_shared<StereoFrameTransformPropertyAccessor>(owner_);  // Gemini330, Gemini435Led, DaBaiA
     }
     else if(vid == ORBBEC_DEVICE_VID) {
-        if(pid == 0x0808 || pid == 0x0809) {
+        if(pid == 0x0808 || pid == 0x069C || pid == 0x0809) {
             accessor_ = std::make_shared<G210FrameTransformPropertyAccessor>(owner_);  // Gemini210
         }
         else if(pid == 0x0670 || pid == 0x0673) {
